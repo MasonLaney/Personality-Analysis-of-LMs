@@ -50,7 +50,7 @@ torch.backends.cudnn.benchmark = False
 torch.set_num_threads(1)
 
 # create default (non-fine-tuned) model and save it
-DEFAULT_MODEL_CHECKPOINT = 'distilbert-base-uncased'
+DEFAULT_MODEL_CHECKPOINT = 'bert-base-uncased'
 DEFAULT_MODEL = AutoModelForMaskedLM.from_pretrained(DEFAULT_MODEL_CHECKPOINT)
 DEFAULT_MODEL.save_pretrained(DATA_DIR + 'bert_models/default')
 TOKENIZER = AutoTokenizer.from_pretrained(DEFAULT_MODEL_CHECKPOINT)
@@ -206,7 +206,7 @@ def create_from_scratch_model(input_filepath, output_dir, name='text'):
 # TODO: combine into create_from_scratch_model()?
 def recreate_distilbert_from_scratch():
 
-    output_dir = 'bert_models/from_scratch/distilbert_recreation'
+    output_dir = 'bert_models/from_scratch/distilbert_data'
 
     # retrieve dataset and create untrained model
     dataset = get_distilbert_dataset()
@@ -243,7 +243,7 @@ def recreate_distilbert_from_scratch():
 # TODO: combine into create_fine_tuned_model()?
 def fine_tune_distilbert_further():
 
-    output_dir = 'bert_models/fine_tuned/distilbert_further'
+    output_dir = 'bert_models/fine_tuned/distilbert_data'
 
     # retrieve dataset and set up pre-trained model
     dataset = get_distilbert_dataset()
@@ -277,7 +277,7 @@ def fine_tune_distilbert_further():
     print('Fine-tuning completed!')
 
 
-recreate_distilbert_from_scratch()
+#recreate_distilbert_from_scratch()
 #fine_tune_distilbert_further()
 
 
@@ -285,7 +285,7 @@ recreate_distilbert_from_scratch()
 if RERUN_MODELS:
 
     # create main models
-    for model_name in ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news']:
+    for model_name in ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news', 'distilbert_data']:
         create_fine_tuned_model('input_data/cleaned_data/' + model_name + '_data.txt', 'bert_models/fine_tuned/' + model_name, model_name)
         create_from_scratch_model('input_data/cleaned_data/' + model_name + '_data.txt', 'bert_models/from_scratch/' + model_name, model_name)
 
@@ -294,29 +294,39 @@ if RERUN_MODELS:
         create_fine_tuned_model('input_data/cleaned_data/' + trait + '_positive_reddit.txt', 'bert_models/fine_tuned/' + trait + '_positive_reddit', trait + '_positive_reddit')
         create_fine_tuned_model('input_data/cleaned_data/' + trait + '_negative_reddit.txt', 'bert_models/fine_tuned/' + trait + '_negative_reddit', trait + '_negative_reddit')
 
+    # create assessment data models
+    for trait in ['extroversion', 'agreeableness', 'conscientiousness', 'emotional_stability', 'openness_to_experience']:
+        create_fine_tuned_model('input_data/cleaned_data/' + trait + '_positive_assessment.txt', 'bert_models/fine_tuned/' + trait + '_positive_assessment', trait + '_positive_assessment')
+        create_fine_tuned_model('input_data/cleaned_data/' + trait + '_negative_assessment.txt', 'bert_models/fine_tuned/' + trait + '_negative_assessment', trait + '_negative_assessment')
+
 
 # class for retrieving BERT models
 # TODO: refine this
 class BertModels:
 
     def __init__(self):
-        self.supported_models = ['default', 'ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news']
+        self.supported_models = ['default', 'ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news', 'distilbert_data']
         self.reddit_models = ['extroversion_positive_reddit', 'extroversion_negative_reddit',
                               'agreeableness_positive_reddit', 'agreeableness_negative_reddit',
                               'conscientiousness_positive_reddit', 'conscientiousness_negative_reddit',
                               'neuroticism_positive_reddit', 'neuroticism_negative_reddit',
                               'openness_to_experience_positive_reddit', 'openness_to_experience_negative_reddit']
+        self.assessment_models = ['extroversion_positive_assessment', 'extroversion_negative_assessment',
+                              'agreeableness_positive_assessment', 'agreeableness_negative_assessment',
+                              'conscientiousness_positive_assessment', 'conscientiousness_negative_assessment',
+                              'emotional_stability_positive_assessment', 'emotional_stability_negative_assessment',
+                              'openness_to_experience_positive_assessment', 'openness_to_experience_negative_assessment']
         self.tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL_CHECKPOINT)
 
     def get_tokenizer(self):
         return self.tokenizer
 
     def get_model(self, name, from_scratch=False):
-        assert name in self.supported_models or name in self.reddit_models
+        assert name in self.supported_models + self.reddit_models + self.assessment_models
         if name == 'default':
             model = AutoModelForMaskedLM.from_pretrained(DATA_DIR + 'bert_models/' + name)
         # NOTE: due to small data size, reddit models only support fine-tuning, regardless of the value of from_scratch
-        elif name in self.reddit_models:
+        elif name in self.reddit_models or name in self.assessment_models:
             model = AutoModelForMaskedLM.from_pretrained(DATA_DIR + 'bert_models/fine_tuned/' + name)
         elif from_scratch:
             model = AutoModelForMaskedLM.from_pretrained(DATA_DIR + 'bert_models/from_scratch/' + name)
@@ -337,6 +347,12 @@ class BertModels:
     def get_reddit_models(self):
         models = {}
         for model_name in self.reddit_models:
+            models[model_name] = self.get_model(model_name)
+        return models
+
+    def get_assessment_models(self):
+        models = {}
+        for model_name in self.assessment_models:
             models[model_name] = self.get_model(model_name)
         return models
 

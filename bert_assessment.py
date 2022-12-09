@@ -13,7 +13,7 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer
 from bert_models import BertModels
 
 # string that points to data directory
-data_dir = '/ssd-playpen/mlaney/'
+DATA_DIR = '/ssd-playpen/mlaney/'
 
 # seeding
 torch.manual_seed(42)
@@ -62,7 +62,7 @@ def evaluate_big_five_assessment(model_name, from_scratch=True):
     output_sentences = {}
     answers_idx = {0: 'always', 1: 'often', 2: 'sometimes', 3: 'rarely', 4: 'never'}
 
-    with open(data_dir + 'input_data/big_five_assessment/bert_assessment_items.json', 'r') as f:
+    with open(DATA_DIR + 'input_data/big_five_assessment/bert_assessment_items.json', 'r') as f:
         input_sentences = json.load(f)
 
     prior_scores = bertModelLoader.calculate_priors(model)
@@ -129,7 +129,6 @@ def score_big_five_assessment(model_name, from_scratch=True):
 test_evaluation_def = score_big_five_assessment('default')
 print(bertModelLoader.calculate_priors(default_model))
 print(json.dumps(test_evaluation_def, indent=4))
-'''
 
 test_evaluation_ft = score_big_five_assessment('reuters_news', False)
 print(bertModelLoader.calculate_priors(reuters_news_fine_tuned_model))
@@ -138,10 +137,14 @@ print(json.dumps(test_evaluation_ft, indent=4))
 test_evaluation_fs = score_big_five_assessment('reuters_news', True)
 print(bertModelLoader.calculate_priors(reuters_news_from_scratch_model))
 print(json.dumps(test_evaluation_fs, indent=4))
-'''
+
 test_evaluation_pos = score_big_five_assessment('openness_to_experience_positive_reddit')
 print(json.dumps(test_evaluation_pos, indent=4))
 
 test_evaluation_neg = score_big_five_assessment('openness_to_experience_negative_reddit')
 print(json.dumps(test_evaluation_neg, indent=4))
+
+print(json.dumps(score_big_five_assessment('extroversion_positive_assessment'), indent=4))
+print(json.dumps(score_big_five_assessment('extroversion_negative_assessment'), indent=4))
 '''
+

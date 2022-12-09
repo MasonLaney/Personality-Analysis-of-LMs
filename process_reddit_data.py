@@ -23,13 +23,14 @@ for question_type, question_data in reddit_traits['question type'].items():
     for key, scores in question_data['context_keys'].items():
         reddit_data[key][question_type] = scores
 
-# categorize text based on positive or negative association with each trait
+# create dicts to store output data
 positive_texts = {}
 negative_texts = {}
 for trait in TRAITS:
     positive_texts[trait] = []
     negative_texts[trait] = []
 
+# categorize text based on positive or negative association with each trait
 # NOTE: high neuroticism here actaully does mean neuroticism, not emotional stability
 for key, info in reddit_data.items():
     for trait in TRAITS:
