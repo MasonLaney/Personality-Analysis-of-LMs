@@ -13,7 +13,7 @@ DATA_DIR = '/ssd-playpen/mlaney/'
 #DATA_DIR = './local_files/'
 
 # seeding
-os.environ["PYTHONHASHSEED"] = "42"
+os.environ['PYTHONHASHSEED'] = '42'
 
 # set up spaCy for sentence segmentation
 #spacy.cli.download('en_core_web_sm')

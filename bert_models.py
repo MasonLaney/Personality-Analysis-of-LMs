@@ -21,7 +21,7 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM, DataCollatorForLan
 from transformers import DistilBertConfig, DistilBertTokenizerFast
 
 # clear the CUDA cache to avoid OOM errors
-os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
+#os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
 gc.collect()
 torch.cuda.empty_cache()
 

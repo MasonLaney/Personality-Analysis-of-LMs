@@ -1,4 +1,4 @@
-
+'''
 # package imports
 
 import os
@@ -26,6 +26,20 @@ models = bertModelLoader.get_models()
 
 print(models)
 test_model = models['default']
+'''
+
+# package imports
+from datasets import load_metric
+
+# useful constants
+SEED = 42
+DATA_DIR = '/ssd-playpen/mlaney/'
+CACHE_DIR = DATA_DIR+'cache/'
+
+metric = load_metric('super_glue', cache_dir=CACHE_DIR)
+
+
+
 
 
 

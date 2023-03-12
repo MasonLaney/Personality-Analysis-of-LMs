@@ -1,7 +1,20 @@
 ##!/ssd-playpen/mlaney/.virtualenvs/senior_honors_thesis/bin/python
 
+import os
 import gc
-gc.collect()
+n = gc.collect()
+print('Number of unreachable objects collected by GC:', n)
+
+# clear the CUDA cache to avoid OOM errors
+#os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
+#os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+# ^ stopped working? replaced with torch.cuda.device
+
+import torch
+torch.cuda.device(2)
+os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
+torch.cuda.empty_cache()
+
 
 # package imports
 import json
@@ -9,8 +22,6 @@ import math
 import multiprocessing
 import datasets
 import numpy as np
-import os
-import torch
 from datasets import DownloadConfig, load_dataset
 from itertools import chain
 from torch.nn import functional as F
@@ -22,7 +33,7 @@ from transformers import TrainingArguments, Trainer, AutoModelForMaskedLM, DataC
 SEED = 42
 DATA_DIR = '/ssd-playpen/mlaney/'
 CACHE_DIR = DATA_DIR+'cache/'
-CHUNK_SIZE = 512  # 128
+CHUNK_SIZE = 128  # 512
 NUM_PROC = multiprocessing.cpu_count()
 #TRAIN_SIZE = 20_000 # number of text chunks, corresponds to ~100k sentences
 #TEST_SIZE = int(0.1*TRAIN_SIZE)
@@ -30,13 +41,12 @@ NUM_PROC = multiprocessing.cpu_count()
 DOWNLOAD_CONFIG = DownloadConfig(cache_dir=CACHE_DIR, resume_download=True)
 
 
-# clear the CUDA cache to avoid OOM errors
-os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
-torch.cuda.empty_cache()
-
 # seeding
-torch.manual_seed(42)
-os.environ['PYTHONHASHSEED'] = str(SEED)
+#SEED = np.random.randint(low=0, high=100000)
+#torch.manual_seed(SEED)
+#os.environ['PYTHONHASHSEED'] = str(SEED)
+#print(os.environ)
+
 
 # NOTE: first_group_texts from recreate_bert
 def tokenize_fn(examples, tokenizer):
@@ -133,13 +143,13 @@ def get_probabilities_for_sentence(sentence, model, tokenizer):
 
 
 # TODO: docstring
-def take_big_five_assessment(model, tokenizer):
+def take_big_five_assessment(model, tokenizer, assessment_file):
 
     model.eval()
     output_sentences = {}
     answers_idx = {0: 'always', 1: 'often', 2: 'sometimes', 3: 'rarely', 4: 'never'}
 
-    with open(DATA_DIR + 'input_data/big_five_assessment/bert_assessment_items.json', 'r') as f:
+    with open(f'{DATA_DIR}input_data/big_five_assessment/{assessment_file}', 'r') as f:
         input_sentences = json.load(f)
 
     for key, sentence in input_sentences.items():
@@ -159,9 +169,10 @@ def take_big_five_assessment(model, tokenizer):
 # TODO: docstring
 def score_big_five_assessment(model, tokenizer):
 
-    results = take_big_five_assessment(model, tokenizer)
+    results = take_big_five_assessment(model, tokenizer, 'bert_assessment_items.json')
 
-    scores = {'extroversion': 20, 'agreeableness': 14, 'conscientiousness': 14, 'emotional stability': 38, 'openness to experience': 8}
+    max_answer_scores = {'extroversion': 20, 'agreeableness': 14, 'conscientiousness': 14, 'emotional stability': 38, 'openness to experience': 8}
+    avg_answer_scores = {'extroversion': 20, 'agreeableness': 14, 'conscientiousness': 14, 'emotional stability': 38, 'openness to experience': 8}
     contributing_questions = {'extroversion': {'positive': [1, 11, 21, 31, 41], 'negative': [6, 16, 26, 36, 46]},
         'agreeableness': {'positive': [7, 17, 27, 37, 42, 47], 'negative': [2, 12, 22, 32]},
         'conscientiousness': {'positive': [3, 13, 23, 33, 43, 48], 'negative': [8, 18, 28, 38]},
@@ -171,36 +182,114 @@ def score_big_five_assessment(model, tokenizer):
 
     for trait, question_numbers in contributing_questions.items():
         for num in question_numbers['positive']:
-            scores[trait] += answer_points[results[str(num)]['min_score_word']]
+            max_answer_scores[trait] += answer_points[results[str(num)]['min_score_word']]
+            avg_answer_scores[trait] += np.average(np.multiply(results[str(num)]['prob'], list(answer_points.values())))
         for num in question_numbers['negative']:
-            scores[trait] -= answer_points[results[str(num)]['min_score_word']]
+            max_answer_scores[trait] -= answer_points[results[str(num)]['min_score_word']]
+            avg_answer_scores[trait] -= np.average(np.multiply(results[str(num)]['prob'], list(answer_points.values())))
 
-    return scores
+    return {'max_answer_scores': max_answer_scores, 'avg_answer_scores': avg_answer_scores, 'full_data': results}
+
+
+# TODO: docstring
+def score_big_five_assessment_modified(model, tokenizer):
+
+    results = take_big_five_assessment(model, tokenizer, 'bert_assessment_items_modified.json')
+
+    max_answer_scores = {'extroversion': 14, 'agreeableness': -4, 'conscientiousness': 14, 'emotional stability': 38, 'openness to experience': -4}
+    avg_answer_scores = {'extroversion': 14, 'agreeableness': -4, 'conscientiousness': 14, 'emotional stability': 38, 'openness to experience': -4}
+    contributing_questions = {'extroversion': {'positive': [1, 6, 11, 21, 31, 36], 'negative': [16, 26, 41, 46]},
+        'agreeableness': {'positive': [2, 7, 17, 22, 27, 32, 37, 42, 47], 'negative': [12]},
+        'conscientiousness': {'positive': [3, 13, 23, 33, 43, 48], 'negative': [8, 18, 28, 38]},
+        'emotional stability': {'positive': [9, 19], 'negative': [4, 14, 24, 29, 34, 39, 44, 49]},
+        'openness to experience': {'positive': [5, 15, 20, 25, 30, 35, 40, 45, 50], 'negative': [10]}}
+    answer_points = {'always': 5, 'often': 4, 'sometimes': 3, 'rarely': 2, 'never': 1}
+
+    for trait, question_numbers in contributing_questions.items():
+        for num in question_numbers['positive']:
+            max_answer_scores[trait] += answer_points[results[str(num)]['min_score_word']]
+            avg_answer_scores[trait] += np.average(np.multiply(results[str(num)]['prob'], list(answer_points.values())))
+        for num in question_numbers['negative']:
+            max_answer_scores[trait] -= answer_points[results[str(num)]['min_score_word']]
+            avg_answer_scores[trait] -= np.average(np.multiply(results[str(num)]['prob'], list(answer_points.values())))
+
+    return {'max_answer_scores': max_answer_scores, 'avg_answer_scores': avg_answer_scores, 'full_data': results}
+
 
 
 # TODO: docstring
 def fine_tune_and_assess(base_model, dataset, tokenizer, output_dir, num_epochs, seed=SEED):
 
+    full_data = {}
     base_results = score_big_five_assessment(base_model, tokenizer)
+    full_data[0] = base_results['full_data']
     with open(f'{DATA_DIR}assessment_results/{output_dir}.txt', 'a') as f:
-        f.write(f'Base: {base_results}\n')
-    print(f'Base: {base_results}\n')
+        f.write(f'Base: {base_results["max_answer_scores"]}\n')
+    print(f'Base: {base_results["max_answer_scores"]}\n')
+
 
     model = base_model
     for i in range(num_epochs):
         fine_tune(model, dataset, tokenizer, output_dir, seed)
         model = AutoModelForMaskedLM.from_pretrained(DATA_DIR + 'bert_models/new/' + output_dir)
         results = score_big_five_assessment(model, tokenizer)
+        full_data[i+1] = results['full_data']
+        print(f'Epoch {i+1}: {results["max_answer_scores"]}\n')
         with open(f'{DATA_DIR}assessment_results/{output_dir}.txt', 'a') as f:
-            f.write(f'Epoch {i+1}: {results}\n')
-        print(f'Epoch {i+1}: {results}\n')
+            f.write(f'Epoch {i+1}: {results["max_answer_scores"]}\n')
+
+    with open(f'{DATA_DIR}assessment_results/{output_dir}_full_data.json', 'w') as f:
+        json.dump(full_data, f)
+
+    return full_data
 
 
-print('Running fine-tuning script')
-#print(os.environ)
+# TODO: docstring
+def fine_tune_and_assess_modified(base_model, dataset, tokenizer, output_dir, num_epochs, seed=SEED):
+
+    full_data = {}
+    base_results = score_big_five_assessment_modified(base_model, tokenizer)
+    full_data[0] = base_results['full_data']
+    with open(f'{DATA_DIR}modified_assessment_results/{output_dir}.txt', 'a') as f:
+        f.write(f'Base: {base_results["max_answer_scores"]}\n')
+    print(f'Base: {base_results["max_answer_scores"]}\n')
+
+    model = base_model
+    for i in range(num_epochs):
+        fine_tune(model, dataset, tokenizer, output_dir, seed)
+        model = AutoModelForMaskedLM.from_pretrained(DATA_DIR + 'bert_models/new/' + output_dir)
+        results = score_big_five_assessment(model, tokenizer)
+        full_data[i+1] = results['full_data']
+        print(f'Epoch {i+1}: {results["max_answer_scores"]}\n')
+        with open(f'{DATA_DIR}modified_assessment_results/{output_dir}.txt', 'a') as f:
+            f.write(f'Epoch {i+1}: {results["max_answer_scores"]}\n')
+
+    with open(f'{DATA_DIR}modified_assessment_results/{output_dir}_full_data.json', 'w') as f:
+        json.dump(full_data, f)
+
+    return full_data
+
+
+def multiple_assessment_modified(base_model, dataset, tokenizer, output_dir, num_epochs, seeds):
+
+    total_data = {}
+    for seed in seeds:
+
+        torch.manual_seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        print(os.environ)
+
+        total_data[seed] = fine_tune_and_assess_modified(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), 'multiple/'+output_dir, num_epochs, seed)
+        with open(f'{DATA_DIR}modified_assessment_results/multiple/{output_dir}.txt', 'a') as f:
+            f.write(f'ASSESSMENT RESULTS WITH SEED={seed}:\n')
+        # ^ note: prints this after the results accidentally
+
+    with open(f'{DATA_DIR}modified_assessment_results/multiple/{output_dir}_total_data.json', 'w') as f:
+        json.dump(total_data, f)
 
 
 '''
+OLD
 # fine-tune on subset of BERT dataset
 print('Fine-tuning on 1% of BERT dataset')
 wikipedia_dataset = load_dataset('wikipedia', '20220301.en', cache_dir=CACHE_DIR, download_config=DOWNLOAD_CONFIG, split='train[:1%]')
@@ -211,15 +300,29 @@ bert_dataset = datasets.concatenate_datasets([bookcorpus_dataset, wikipedia_data
 fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), bert_dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), 'bert_data', 10)
 '''
 
+print('Running fine-tuning script')
+seeds = [int(seed) for seed in np.random.randint(0, 10000, 10)]
 
 # fine-tune on normal datasets
 for data_name in ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news']:
+
     print(f'Fine-tuning on {data_name} dataset')
     dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{data_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
-    fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10)
+    multiple_assessment_modified(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10, seeds)
 
-print('Finished running non-BERT-corpus fine-tuning script')
+'''
+# fine-tune on assessment datasets
+for data_name in ['extroversion_positive_assessment', 'extroversion_negative_assessment',
+                  'agreeableness_positive_assessment', 'agreeableness_negative_assessment',
+                  'conscientiousness_positive_assessment', 'conscientiousness_negative_assessment',
+                  'emotional_stability_positive_assessment', 'emotional_stability_negative_assessment',
+                  'openness_to_experience_positive_assessment', 'openness_to_experience_negative_assessment']:
+    print(f'Fine-tuning on {data_name} dataset')
+    dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{data_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
+    multiple_assessment_modified(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10, seeds)
+'''
 
+'''
 # fine-tune on subset of BERT dataset
 print('Fine-tuning on 1% of BERT dataset')
 wikipedia_dataset = load_dataset('wikipedia', '20220301.en', cache_dir=CACHE_DIR, download_config=DOWNLOAD_CONFIG, split='train')
@@ -229,27 +332,13 @@ assert bookcorpus_dataset.features.type == wikipedia_dataset.features.type
 bert_dataset = datasets.concatenate_datasets([bookcorpus_dataset, wikipedia_dataset])
 subset_length = int(0.01*len(bert_dataset))
 bert_dataset = bert_dataset.shuffle(seed=SEED).select(range(subset_length))
-fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), bert_dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), 'bert_data', 10)
+fine_tune_and_assess_modified(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), bert_dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), 'bert_data', 10)
+'''
 
-
+'''
+data_name = 'ted_talks'
+dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{data_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
+fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10)
+'''
 
 print('Finished running fine-tuning script')
-
-
-
-
-
-#data_name = 'ted_talks'
-#dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{data_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
-#fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10)
-
-
-# Base: {'extroversion': 18, 'agreeableness': 27, 'conscientiousness': 25, 'emotional stability': 22, 'openness to experience': 25}
-# Epoch 0: {'extroversion': 22, 'agreeableness': 27, 'conscientiousness': 29, 'emotional stability': 24, 'openness to experience': 25}
-# Epoch 1: {'extroversion': 22, 'agreeableness': 27, 'conscientiousness': 29, 'emotional stability': 24, 'openness to experience': 25}
-# Epoch 2: {'extroversion': 20, 'agreeableness': 26, 'conscientiousness': 25, 'emotional stability': 22, 'openness to experience': 25}
-# Epoch 3: {'extroversion': 20, 'agreeableness': 26, 'conscientiousness': 25, 'emotional stability': 22, 'openness to experience': 25}
-# Epoch 4: {'extroversion': 20, 'agreeableness': 26, 'conscientiousness': 25, 'emotional stability': 22, 'openness to experience': 24}
-# Epoch 5: {'extroversion': 20, 'agreeableness': 26, 'conscientiousness': 25, 'emotional stability': 22, 'openness to experience': 25}
-
-# run on bert data
