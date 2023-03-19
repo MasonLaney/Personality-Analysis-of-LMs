@@ -12,7 +12,7 @@ print('Number of unreachable objects collected by GC:', n)
 
 import torch
 torch.cuda.device(2)
-os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 torch.cuda.empty_cache()
 
 
@@ -33,7 +33,7 @@ from transformers import TrainingArguments, Trainer, AutoModelForMaskedLM, DataC
 SEED = 42
 DATA_DIR = '/ssd-playpen/mlaney/'
 CACHE_DIR = DATA_DIR+'cache/'
-CHUNK_SIZE = 128  # 512
+CHUNK_SIZE = 512 # 512
 NUM_PROC = multiprocessing.cpu_count()
 #TRAIN_SIZE = 20_000 # number of text chunks, corresponds to ~100k sentences
 #TEST_SIZE = int(0.1*TRAIN_SIZE)
@@ -82,7 +82,7 @@ def fine_tune(base_model, dataset, tokenizer, output_dir, seed=SEED):
     tokenized_dataset = tokenized_dataset.map(group_texts, fn_kwargs={'tokenizer': tokenizer}, batched=True, num_proc=NUM_PROC)
     tokenized_dataset = tokenized_dataset.train_test_split(train_size=0.9, test_size=0.1, seed=seed)
     num_total_batches = tokenized_dataset['train'].num_rows
-    print(f'Number of training chunks: {num_total_batches}')
+    print(f'Number of training chunks: {num_total_batches}, each of size {tokenizer.model_max_length}')
 
     '''
     # NOTE: here we are reducing all datasets to the same max size for consistency
@@ -308,6 +308,7 @@ for data_name in ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_
 
     print(f'Fine-tuning on {data_name} dataset')
     dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{data_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
+
     multiple_assessment_modified(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), dataset, AutoTokenizer.from_pretrained('bert-base-uncased'), data_name, 10, seeds)
 
 '''
