@@ -1,17 +1,5 @@
-#cache_dir = root_dir + 'cache/'
-#download_config = DownloadConfig(cache_dir=cache_dir, resume_download=True)
-'''
-# Hugging Face Hub stuff
-from huggingface_hub import HfApi, login
-api = HfApi()
-access_token = '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'
-login(token=access_token)
-'''
-#   {'audio': {'path': '/playpen/mlaney/multimodal/input_data/first_impressions_v2/data/train/--Ymqszjv54.003.mp3',
-#       'array': array([0.        , 0.        , 0.        , ..., 0.00745735, 0.02285403, 0.03162834], dtype=float32),
-#       'sampling_rate': 44100},
-#   'extraversion': 0.3925233644859813, 'neuroticism': 0.4270833333333333, 'agreeableness': 0.5164835164835165, 'conscientiousness': 0.4757281553398058, 'interview': 0.3925233644859813, 'openness': 0.4666666666666667}
 
+# takes inspiration from https://towardsdatascience.com/fine-tuning-hubert-for-emotion-recognition-in-custom-audio-data-using-huggingface-c2d516b41cd8
 
 # package imports
 import numpy as np
@@ -19,24 +7,21 @@ import os
 import torch
 from datasets import Audio, load_dataset, DatasetDict
 from sklearn.metrics import accuracy_score
-from transformers import AutoProcessor, AutoFeatureExtractor, HubertForSequenceClassification, \
-    TrainingArguments, Trainer, EvalPrediction, PretrainedConfig
+from transformers import AutoProcessor, AutoFeatureExtractor, HubertForSequenceClassification, TrainingArguments, Trainer, EvalPrediction
 from DCCTC import DataCollatorCTCWithPadding
 
 # constants / GPU setup
 seed = 42
 root_dir = '/playpen/mlaney/multimodal/'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-#os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:128'
-#torch.cuda.set_device(1)
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+torch.cuda.device(2)
 torch.cuda.empty_cache()
 torch.manual_seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)
 
-# TODO: figure out why unified train/val version didn't work, update HF Hub
 # load datasets
-train_dataset = load_dataset('audiofolder', data_dir=root_dir+'input_data/first_impressions_v2/data/train')['train']
-val_dataset = load_dataset('audiofolder', data_dir=root_dir+'input_data/first_impressions_v2/data/validation')['train']
+train_dataset = load_dataset('audiofolder', data_dir=root_dir+'input_data/first_impressions_v2/data/train', split='train')
+val_dataset = load_dataset('audiofolder', data_dir=root_dir+'input_data/first_impressions_v2/data/validation', split='train')
 dataset = DatasetDict({'train': train_dataset, 'validation': val_dataset})
 dataset = dataset.cast_column('audio', Audio(sampling_rate=16_000))
 
@@ -48,10 +33,9 @@ label2id = {label:idx for idx, label in enumerate(labels)}
 
 # model parameters / setup
 sampling_rate = dataset['train'].features['audio'].sampling_rate
-batch_size = 10
+batch_size = 8
 metric_name = 'averaged_accuracy'
-pretrained_model_name = 'facebook/hubert-base-ls960'
-# voidful/hubert-tiny-v2
+pretrained_model_name = 'ntu-spml/distilhubert'
 processor = AutoProcessor.from_pretrained(pretrained_model_name)
 feature_extractor = AutoFeatureExtractor.from_pretrained(pretrained_model_name)
 
@@ -72,7 +56,6 @@ def prepare_dataset(batch):
     # TODO: labels is currently a list inside a list
     return batch
 
-
 # preprocess/encode datasets
 encoded_dataset = dataset.map(prepare_dataset, remove_columns=dataset['train'].column_names)
 encoded_dataset.set_format('torch')
@@ -91,15 +74,16 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=3,
+    num_train_epochs=8,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model=metric_name,
     logging_dir=root_dir+'logs/',
-    gradient_accumulation_steps=1
+    gradient_accumulation_steps=1,
+    fp16=True,
 )
 
-# source: https://jesusleal.io/2021/04/21/Longformer-multilabel-classification/
+# modified from https://jesusleal.io/2021/04/21/Longformer-multilabel-classification/
 def multi_label_metrics(predictions, labels, threshold=0.5):
 
     # first, apply sigmoid on predictions which are of shape (batch_size, num_labels)
@@ -140,14 +124,19 @@ def compute_metrics(p: EvalPrediction):
     result = multi_label_metrics(predictions=preds, labels=p.label_ids)
     return result
 
-
-
 data_collator = DataCollatorCTCWithPadding(
             processor=feature_extractor,
             padding=True
 )
 
-trainer = Trainer(
+# modified from https://discuss.huggingface.co/t/multilabel-sequence-classification-with-roberta-value-error-expected-input-batch-size-to-match-target-batch-size/1653
+class CustomTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        outputs = model(input_values=inputs['input_values'])
+        loss = torch.nn.BCEWithLogitsLoss()(outputs['logits'], inputs['labels'])
+        return (loss, outputs) if return_outputs else loss
+
+trainer = CustomTrainer(
     model,
     args,
     data_collator=data_collator,

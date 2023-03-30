@@ -301,7 +301,9 @@ fine_tune_and_assess(AutoModelForMaskedLM.from_pretrained('bert-base-uncased'), 
 '''
 
 print('Running fine-tuning script')
-seeds = [int(seed) for seed in np.random.randint(0, 10000, 10)]
+#seeds = [int(seed) for seed in np.random.randint(0, 10000, 10)]
+SEEDS = [5904, 557, 1113, 4819, 6624, 269, 6429, 3929, 9085, 7906]
+
 
 # fine-tune on normal datasets
 for data_name in ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news']:

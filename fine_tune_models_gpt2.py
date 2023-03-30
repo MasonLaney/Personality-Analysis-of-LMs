@@ -102,24 +102,19 @@ def fine_tune(base_model, dataset, tokenizer, output_dir, seed=SEED):
 
 # NOTE: taken from Graham's work
 def get_probabilities_for_sentence(sentence, model, tokenizer):
-
     sentence = sentence.replace('[MASK]', '{}')
     out = []
     for word in ['always', 'often', 'sometimes', 'rarely', 'never']:
         #input_ids = tokenizer.encode(sentence.format(word), return_tensors='pt') # or torch.tensor(tokenizer.encode(sentence.format(word))).unsqueeze(0)
-
         print(torch.tensor(tokenizer.encode(sentence.format(word))).unsqueeze(0))
 
         input_ids = torch.tensor(tokenizer.encode(sentence.format(word))).unsqueeze(0)
         with torch.no_grad():
             outputs = model(input_ids, labels=input_ids)
         # ^^^ ?????
-
         loss, logits = outputs[:2] # the loss is the average negative log-likelyhood
-
         print(loss)
         exit()
-
         out.append([math.exp(-l) for l in loss])
     print(out)
     return out # or torch.exp(loss) for tensor

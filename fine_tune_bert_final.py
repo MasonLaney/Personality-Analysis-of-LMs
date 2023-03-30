@@ -11,7 +11,7 @@ torch.cuda.empty_cache()
 
 # package imports
 import multiprocessing
-from datasets import DownloadConfig, load_dataset
+from datasets import DownloadConfig, load_dataset, concatenate_datasets
 from itertools import chain
 from transformers import TrainingArguments, Trainer, AutoModelForMaskedLM, DataCollatorForLanguageModeling, \
     AutoTokenizer
@@ -83,9 +83,9 @@ def fine_tune_single(base_model, dataset, model_name, tokenizer, num_epochs=4, s
         evaluation_strategy='epoch',
         save_total_limit=1,
         save_strategy='no',
-        load_best_model_at_end=False
+        load_best_model_at_end=False,
+        fp16=True, # TODO: change back
     )
-
 
     # create trainer
     trainer = Trainer(
@@ -108,7 +108,7 @@ def fine_tune_multiple(base_model_name, dataset, model_name, tokenizer, num_epoc
     for seed in seeds:
         torch.manual_seed(seed)
         os.environ['PYTHONHASHSEED'] = str(seed)
-        base_model = AutoModelForMaskedLM.from_pretrained('bert-base-uncased')
+        base_model = AutoModelForMaskedLM.from_pretrained(base_model_name)
         fine_tune_single(base_model, dataset, model_name, tokenizer, num_epochs, seed)
     print(f'Finished fine tuning {base_model_name} model on {model_name} dataset')
 
@@ -116,30 +116,64 @@ def fine_tune_multiple(base_model_name, dataset, model_name, tokenizer, num_epoc
 # datasets we'll be using
 DATASET_NAMES = {
     'main': ['ted_talks', 'arxiv_abstracts', 'friends_scripts', 'childrens_lit', 'reuters_news'],
-    'essays': ['extroversion_positive_assessment', 'extroversion_negative_assessment',
+    'essays': ['ext_pos_essays', 'ext_neg_essays',
+               'agr_pos_essays', 'agr_neg_essays',
+               'con_pos_essays', 'con_neg_essays',
+               'emo_pos_essays', 'emo_neg_essays',
+               'opn_pos_essays', 'opn_neg_essays'],
+    'assessment': ['extroversion_positive_assessment', 'extroversion_negative_assessment',
                 'agreeableness_positive_assessment', 'agreeableness_negative_assessment',
                 'conscientiousness_positive_assessment', 'conscientiousness_negative_assessment',
                 'emotional_stability_positive_assessment', 'emotional_stability_negative_assessment',
                 'openness_to_experience_positive_assessment', 'openness_to_experience_negative_assessment'],
-    'model': ['bert_data']
 }
 
 '''
 # fine tune on various datasets
 for dataset_name in DATASET_NAMES['main']:
     base_model_name = 'bert-base-uncased'
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     tokenizer.model_max_length=CHUNK_SIZE
     dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{dataset_name}_data.txt', download_config=DOWNLOAD_CONFIG)['train']
     fine_tune_multiple(base_model_name, dataset, dataset_name, tokenizer, num_epochs=4, seeds=SEEDS)
-'''
 
 for dataset_name in DATASET_NAMES['essays']:
     base_model_name = 'bert-base-uncased'
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     tokenizer.model_max_length=CHUNK_SIZE
     dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{dataset_name}.txt', download_config=DOWNLOAD_CONFIG)['train']
     fine_tune_multiple(base_model_name, dataset, dataset_name, tokenizer, num_epochs=4, seeds=SEEDS)
+'''
 
+'''
+def fine_tune_bert_data(base_model_name, tokenizer, num_epochs=4, seeds=SEEDS):
+    wikipedia_dataset = load_dataset('wikipedia', '20220301.en', cache_dir=CACHE_DIR, download_config=DOWNLOAD_CONFIG, split='train')
+    wikipedia_dataset = wikipedia_dataset.remove_columns([col for col in wikipedia_dataset.column_names if col != 'text'])
+    bookcorpus_dataset = load_dataset('bookcorpus', cache_dir=CACHE_DIR, download_config=DOWNLOAD_CONFIG, split='train')
+    assert bookcorpus_dataset.features.type == wikipedia_dataset.features.type
+    bert_dataset = concatenate_datasets([bookcorpus_dataset, wikipedia_dataset])
+    subset_length = int(0.0025 * len(bert_dataset))
+
+    print(f'Fine tuning {base_model_name} model on BERT dataset over {num_epochs} epochs')
+    for seed in seeds:
+        torch.manual_seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
+        base_model = AutoModelForMaskedLM.from_pretrained(base_model_name)
+        bert_dataset = bert_dataset.shuffle(seed=seed).select(range(subset_length))
+        fine_tune_single(base_model, bert_dataset, 'bert_data', tokenizer, num_epochs, seed)
+    print(f'Finished fine tuning {base_model_name} model on bert_data dataset')
+
+base_model_name = 'bert-base-uncased'
+tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+tokenizer.model_max_length=CHUNK_SIZE
+fine_tune_bert_data(base_model_name, tokenizer, num_epochs=4, seeds=SEEDS)
+'''
+
+dataset_name = 'essays'
+base_model_name = 'bert-base-uncased'
+tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+tokenizer.model_max_length=CHUNK_SIZE
+dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{dataset_name}.txt', download_config=DOWNLOAD_CONFIG)['train']
+fine_tune_multiple(base_model_name, dataset, dataset_name, tokenizer, num_epochs=4, seeds=SEEDS)
 
 

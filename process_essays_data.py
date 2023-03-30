@@ -24,33 +24,37 @@ def process_essays(essay_list, output_dir):
             for sent in doc.sents:
                 f.write(f'{sent}\n')
 
-# create datasets for positive/negative extroversion scores
-ext_pos = essays_df.loc[essays_df['cEXT'] == 'y']['TEXT'].tolist()
-ext_neg = essays_df.loc[essays_df['cEXT'] == 'n']['TEXT'].tolist()
-process_essays(ext_pos, DATA_DIR+'input_data/cleaned_data/ext_pos_essays.txt')
-process_essays(ext_neg, DATA_DIR+'input_data/cleaned_data/ext_neg_essays.txt')
 
-# create datasets for positive/negative agreeableness scores
-agr_pos = essays_df.loc[essays_df['cAGR'] == 'y']['TEXT'].tolist()
-agr_neg = essays_df.loc[essays_df['cAGR'] == 'n']['TEXT'].tolist()
-process_essays(agr_pos, DATA_DIR+'input_data/cleaned_data/agr_pos_essays.txt')
-process_essays(agr_neg, DATA_DIR+'input_data/cleaned_data/agr_neg_essays.txt')
 
-# create datasets for positive/negative conscientiousness scores
-con_pos = essays_df.loc[essays_df['cCON'] == 'y']['TEXT'].tolist()
-con_neg = essays_df.loc[essays_df['cCON'] == 'n']['TEXT'].tolist()
-process_essays(con_pos, DATA_DIR+'input_data/cleaned_data/con_pos_essays.txt')
-process_essays(con_neg, DATA_DIR+'input_data/cleaned_data/con_neg_essays.txt')
+process_essays(essays_df['TEXT'].tolist(), DATA_DIR+'input_data/cleaned_data/essays.txt')
 
-# create datasets for positive/negative emotional stability scores
-emo_pos = essays_df.loc[essays_df['cNEU'] == 'n']['TEXT'].tolist()
-emo_neg = essays_df.loc[essays_df['cNEU'] == 'y']['TEXT'].tolist()
-process_essays(emo_pos, DATA_DIR+'input_data/cleaned_data/emo_pos_essays.txt')
-process_essays(emo_neg, DATA_DIR+'input_data/cleaned_data/emo_neg_essays.txt')
-
-# create datasets for positive/negative openness to experience scores
-opn_pos = essays_df.loc[essays_df['cOPN'] == 'y']['TEXT'].tolist()
-opn_neg = essays_df.loc[essays_df['cOPN'] == 'n']['TEXT'].tolist()
-process_essays(opn_pos, DATA_DIR+'input_data/cleaned_data/opn_pos_essays.txt')
-process_essays(opn_neg, DATA_DIR+'input_data/cleaned_data/opn_neg_essays.txt')
+# # create datasets for positive/negative extroversion scores
+# ext_pos = essays_df.loc[essays_df['cEXT'] == 'y']['TEXT'].tolist()
+# ext_neg = essays_df.loc[essays_df['cEXT'] == 'n']['TEXT'].tolist()
+# process_essays(ext_pos, DATA_DIR+'input_data/cleaned_data/ext_pos_essays.txt')
+# process_essays(ext_neg, DATA_DIR+'input_data/cleaned_data/ext_neg_essays.txt')
+#
+# # create datasets for positive/negative agreeableness scores
+# agr_pos = essays_df.loc[essays_df['cAGR'] == 'y']['TEXT'].tolist()
+# agr_neg = essays_df.loc[essays_df['cAGR'] == 'n']['TEXT'].tolist()
+# process_essays(agr_pos, DATA_DIR+'input_data/cleaned_data/agr_pos_essays.txt')
+# process_essays(agr_neg, DATA_DIR+'input_data/cleaned_data/agr_neg_essays.txt')
+#
+# # create datasets for positive/negative conscientiousness scores
+# con_pos = essays_df.loc[essays_df['cCON'] == 'y']['TEXT'].tolist()
+# con_neg = essays_df.loc[essays_df['cCON'] == 'n']['TEXT'].tolist()
+# process_essays(con_pos, DATA_DIR+'input_data/cleaned_data/con_pos_essays.txt')
+# process_essays(con_neg, DATA_DIR+'input_data/cleaned_data/con_neg_essays.txt')
+#
+# # create datasets for positive/negative emotional stability scores
+# emo_pos = essays_df.loc[essays_df['cNEU'] == 'n']['TEXT'].tolist()
+# emo_neg = essays_df.loc[essays_df['cNEU'] == 'y']['TEXT'].tolist()
+# process_essays(emo_pos, DATA_DIR+'input_data/cleaned_data/emo_pos_essays.txt')
+# process_essays(emo_neg, DATA_DIR+'input_data/cleaned_data/emo_neg_essays.txt')
+#
+# # create datasets for positive/negative openness to experience scores
+# opn_pos = essays_df.loc[essays_df['cOPN'] == 'y']['TEXT'].tolist()
+# opn_neg = essays_df.loc[essays_df['cOPN'] == 'n']['TEXT'].tolist()
+# process_essays(opn_pos, DATA_DIR+'input_data/cleaned_data/opn_pos_essays.txt')
+# process_essays(opn_neg, DATA_DIR+'input_data/cleaned_data/opn_neg_essays.txt')
 

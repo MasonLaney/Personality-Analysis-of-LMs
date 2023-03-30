@@ -1,17 +1,21 @@
 
+# loosely based on https://github.com/NielsRogge/Transformers-Tutorials/blob/master/BERT/Fine_tuning_BERT_(and_friends)_for_multi_label_text_classification.ipynb
+
 # package imports
 import numpy as np
 import os
 import torch
 from datasets import load_from_disk, DatasetDict
 from sklearn.metrics import accuracy_score
-from transformers import BertTokenizer, AutoModelForSequenceClassification, \
-    TrainingArguments, Trainer, EvalPrediction
+from transformers import BertTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer, EvalPrediction
 
 # constants / GPU setup
 seed = 42
 root_dir = '/playpen/mlaney/multimodal/'
 os.environ['CUDA_VISIBLE_DEVICES'] = '2, 3'
+torch.cuda.empty_cache()
+torch.manual_seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
 
 # load datasets
 train_dataset = load_from_disk('first_impressions_v2/text/train')
@@ -62,14 +66,14 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=3,
+    num_train_epochs=8,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model=metric_name,
     logging_dir=root_dir+'logs/'
 )
 
-# source: https://jesusleal.io/2021/04/21/Longformer-multilabel-classification/
+# modified from https://jesusleal.io/2021/04/21/Longformer-multilabel-classification/
 def multi_label_metrics(predictions, labels, threshold=0.5):
 
     # first, apply sigmoid on predictions which are of shape (batch_size, num_labels)
@@ -94,15 +98,6 @@ def multi_label_metrics(predictions, labels, threshold=0.5):
     averaged_accuracy = np.mean([extraversion_accuracy, neuroticism_accuracy, agreeableness_accuracy, conscientiousness_accuracy, openness_accuracy])
     exact_accuracy = accuracy_score(y_true, y_pred)
 
-    '''
-    f1_micro_average = f1_score(y_true=y_true, y_pred=y_pred, average='micro')
-    roc_auc = roc_auc_score(y_true, y_pred, average = 'micro')
-    accuracy = accuracy_score(y_true, y_pred)
-    # return as dictionary
-    metrics = {'f1': f1_micro_average,
-               'roc_auc': roc_auc,
-               'accuracy': accuracy}
-    '''
     metrics = {
         'averaged_accuracy': averaged_accuracy,
         'exact_accuracy': exact_accuracy,
