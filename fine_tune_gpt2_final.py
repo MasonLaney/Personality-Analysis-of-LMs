@@ -144,7 +144,6 @@ for dataset_name in DATASET_NAMES['essays'] + DATASET_NAMES['assessment']:
         #config.pad_token_id = config.eos_token_id
     dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{dataset_name}.txt', split='train', download_config=DOWNLOAD_CONFIG)
     fine_tune_multiple(base_model_name, dataset, dataset_name, tokenizer, num_epochs=4, seeds=SEEDS)
-'''
 
 def fine_tune_bert_data(base_model_name, tokenizer, num_epochs=4, seeds=SEEDS):
     wikipedia_dataset = load_dataset('wikipedia', '20220301.en', cache_dir=CACHE_DIR, download_config=DOWNLOAD_CONFIG, split='train')
@@ -170,5 +169,17 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
     #config.pad_token_id = config.eos_token_id
 fine_tune_bert_data(base_model_name, tokenizer, num_epochs=4, seeds=SEEDS)
+'''
+
+# fine tune on various datasets
+for dataset_name in ['essays']:
+    base_model_name = 'gpt2'
+    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    tokenizer.model_max_length=CHUNK_SIZE
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        #config.pad_token_id = config.eos_token_id
+    dataset = load_dataset('text', data_files=f'{DATA_DIR}input_data/cleaned_data/{dataset_name}.txt', split='train', download_config=DOWNLOAD_CONFIG)
+    fine_tune_multiple(base_model_name, dataset, dataset_name, tokenizer, num_epochs=4, seeds=SEEDS)
 
 

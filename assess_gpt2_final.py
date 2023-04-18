@@ -143,5 +143,5 @@ def assess_models(base_model_name, model_names, seeds=SEEDS):
             writer.writerows(statistics)
 
 
-assess_models('gpt2', ['bert_data'], SEEDS)
+assess_models('gpt2', ['essays'], SEEDS)
 

@@ -40,8 +40,6 @@ def get_probabilities_for_sentence(sentence, model, tokenizer):
     n = tokenizer.encode('never')[1]
     softmax = F.softmax(logits, dim = -1)
     mask_idx = torch.where(input_idx['input_ids'][0] == tokenizer.mask_token_id)[0].item()
-    print([softmax[mask_idx][a].item(), softmax[mask_idx][o].item(), softmax[mask_idx][s].item(), softmax[mask_idx][r].item(), softmax[mask_idx][n].item()])
-    exit()
     return [softmax[mask_idx][a].item(), softmax[mask_idx][o].item(), softmax[mask_idx][s].item(), softmax[mask_idx][r].item(), softmax[mask_idx][n].item()]
     # ^ The values returned are the perplexity of the single word.
     #   Since rest of sentence is same, don't need perplexity of whole sentence
@@ -145,5 +143,5 @@ def assess_models(base_model_name, model_names, seeds=SEEDS):
             writer.writerows(statistics)
 
 
-assess_models('bert-base-uncased', ['ted_talks'], SEEDS)
+assess_models('bert-base-uncased', ['essays'], SEEDS)
 
