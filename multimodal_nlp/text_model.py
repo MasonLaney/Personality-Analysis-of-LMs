@@ -67,7 +67,7 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=8,
+    num_train_epochs=3,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model=metric_name,
@@ -119,14 +119,14 @@ def compute_metrics(p: EvalPrediction):
 trainer = Trainer(
     model,
     args,
-    train_dataset=encoded_dataset['train'],
+    train_dataset=encoded_dataset['train'].select(range(250)),
     eval_dataset=encoded_dataset['validate'],
     tokenizer=tokenizer,
     compute_metrics=compute_metrics
 )
 
 # training and evaluation
-trainer.train()
-trainer.save_model('text_model')
+#trainer.train()
+#trainer.save_model('text_model_250')
 print(trainer.evaluate())
 print(trainer.predict(encoded_dataset['test']))

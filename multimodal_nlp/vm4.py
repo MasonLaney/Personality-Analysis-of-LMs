@@ -83,7 +83,7 @@ def prepare_dataset(batch):
 #dataset['validate'] = dataset['validate'].select(range(10))
 #dataset['test'] = dataset['test'].select(range(10))
 
-encoded_dataset_train = dataset['validate'].select(range(2,4)).map(prepare_dataset, remove_columns=dataset['train'].column_names, load_from_cache_file=True, writer_batch_size=2000)
+encoded_dataset_train = dataset['validate'].map(prepare_dataset, remove_columns=dataset['train'].column_names, load_from_cache_file=True, writer_batch_size=2000)
 encoded_dataset_train.set_format('torch')
 encoded_dataset_train.save_to_disk('FIV2_video_validate')
 exit()

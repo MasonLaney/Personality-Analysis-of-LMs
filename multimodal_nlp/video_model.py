@@ -7,10 +7,9 @@ import numpy as np
 import os
 import torch
 from pytorchvideo.data.encoded_video import EncodedVideo
-from datasets import load_from_disk
+from datasets import load_from_disk, concatenate_datasets, DatasetDict
 from sklearn.metrics import accuracy_score
 from transformers import (
-    VideoMAEFeatureExtractor,
     VideoMAEImageProcessor,
     VideoMAEForVideoClassification,
     TrainingArguments,
@@ -22,8 +21,8 @@ from pytorchvideo.transforms import UniformTemporalSubsample
 # constants / GPU setup
 seed = 42
 root_dir = '/playpen/mlaney/multimodal/'
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
-torch.cuda.device(2)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+torch.cuda.device(0)
 torch.cuda.empty_cache()
 torch.manual_seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)
@@ -44,7 +43,7 @@ batch_size = 2
 metric_name = 'averaged_accuracy'
 #pretrained_model_name = 'MCG-NJU/videomae-base'
 pretrained_model_name = 'MCG-NJU/videomae-small-finetuned-ssv2'
-#pretrained_model_name = 'hf-tiny-model-private/tiny-random-VideoMAEForVideoClassification'
+#pretrained_model_name = 'hf-internal-testing/tiny-random-VideoMAEForVideoClassification'
 processor = VideoMAEImageProcessor.from_pretrained(pretrained_model_name)
 
 # setup model
@@ -62,7 +61,6 @@ def prepare_dataset(batch):
 
     video = EncodedVideo.from_path(batch['video'], decoder='decord')
     clip = video.get_clip(start_sec=0, end_sec=video.duration)['video']
-    #clip = video
     subsampler = UniformTemporalSubsample(model.config.num_frames)
     subsampled_frames  = subsampler(clip)
     clip_np = subsampled_frames.numpy().transpose(1, 2, 3, 0)
@@ -82,14 +80,15 @@ def prepare_dataset(batch):
     return batch
 
 # preprocess/encode datasets
-#dataset['train'] = dataset['train'].select(range(10))
-#dataset['validate'] = dataset['validate'].select(range(10))
-#dataset['test'] = dataset['test'].select(range(10))
-
-encoded_dataset_train = dataset['train'].select(range(0,2000)).map(prepare_dataset, remove_columns=dataset['train'].column_names, load_from_cache_file=True, writer_batch_size=2000)
-encoded_dataset_train.set_format('torch')
-encoded_dataset_train.save_to_disk('FIV2_video_train1')
-exit()
+#encoded_dataset = dataset.map(prepare_dataset, remove_columns=dataset['train'].column_names, load_from_cache_file=True, writer_batch_size=2005)
+#encoded_dataset.save_to_disk('FIV2_video')
+train1 = load_from_disk('FIV2_video_train1')
+train2 = load_from_disk('FIV2_video_train2')
+train3 = load_from_disk('FIV2_video_train3')
+train = concatenate_datasets([train1, train2, train3])
+val = load_from_disk('FIV2_video_validate')
+encoded_dataset = DatasetDict({'train': train, 'validate': val})
+encoded_dataset.set_format('torch')
 
 # setup training parameters
 args = TrainingArguments(
@@ -99,7 +98,7 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=8,
+    num_train_epochs=2,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model=metric_name,
@@ -149,19 +148,6 @@ def compute_metrics(p: EvalPrediction):
     result = multi_label_metrics(predictions=preds, labels=p.label_ids)
     return result
 
-'''
-def data_collator(examples):
-    input_features = [
-        {'pixel_values': example['pixel_values']} for example in examples
-    ]  # example is basically row0, row1, etc...
-    labels = [example['labels'] for example in examples]
-
-    batch = processor(labels)
-
-    batch['labels'] = torch.stack(labels)
-    return batch
-'''
-
 # modified from https://discuss.huggingface.co/t/multilabel-sequence-classification-with-roberta-value-error-expected-input-batch-size-to-match-target-batch-size/1653
 class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
@@ -173,13 +159,18 @@ trainer = CustomTrainer(
     model,
     args,
     #data_collator=data_collator,
-    train_dataset=encoded_dataset_train,
-    eval_dataset=encoded_dataset_validate,
+    train_dataset=encoded_dataset['train'].select(range(500)),
+    eval_dataset=encoded_dataset['validate'].select(range(100)),
     compute_metrics=compute_metrics
 )
 
 # training and evaluation
-trainer.train()
-trainer.save_model('video_model')
-print(trainer.evaluate())
-print(trainer.predict(encoded_dataset_test))
+#trainer.train('first_impressions_v2_audio/checkpoint-250')
+#trainer.save_model('video_model_500')
+#print(trainer.evaluate())
+
+model = VideoMAEForVideoClassification.from_pretrained('video_model_500')
+print(trainer.predict(encoded_dataset['validate'].select(range(500))))
+
+test = load_from_disk('FIV2_video_test')
+print(trainer.predict(test.select(range(500))))

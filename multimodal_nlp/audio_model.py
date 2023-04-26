@@ -13,8 +13,8 @@ from DCCTC import DataCollatorCTCWithPadding
 # constants / GPU setup
 seed = 42
 root_dir = '/playpen/mlaney/multimodal/'
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
-torch.cuda.device(2)
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+torch.cuda.device(3)
 torch.cuda.empty_cache()
 torch.manual_seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)
@@ -32,7 +32,7 @@ label2id = {label:idx for idx, label in enumerate(labels)}
 
 # model parameters / setup
 sampling_rate = dataset['train'].features['audio'].sampling_rate
-batch_size = 8
+batch_size = 3
 metric_name = 'averaged_accuracy'
 pretrained_model_name = 'ntu-spml/distilhubert'
 processor = AutoProcessor.from_pretrained(pretrained_model_name)
@@ -78,7 +78,7 @@ args = TrainingArguments(
     learning_rate=2e-5,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    num_train_epochs=8,
+    num_train_epochs=3,
     weight_decay=0.01,
     load_best_model_at_end=True,
     metric_for_best_model=metric_name,
@@ -145,13 +145,13 @@ trainer = CustomTrainer(
     model,
     args,
     data_collator=data_collator,
-    train_dataset=encoded_dataset['train'],
+    train_dataset=encoded_dataset['train'].select(range(250)),
     eval_dataset=encoded_dataset['validate'],
     compute_metrics=compute_metrics
 )
 
 # training and evaluation
 trainer.train()
-trainer.save_model('audio_model')
+trainer.save_model('audio_model_250')
 print(trainer.evaluate())
 print(trainer.predict(encoded_dataset['test']))
